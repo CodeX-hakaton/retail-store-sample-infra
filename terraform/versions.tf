@@ -36,21 +36,45 @@ provider "cloudflare" {}
 provider "kubernetes" {
   host                   = module.retail_app_eks.cluster_endpoint
   cluster_ca_certificate = base64decode(module.retail_app_eks.cluster_certificate_authority_data)
-  token                  = data.aws_eks_cluster_auth.this.token
+
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args = [
+      "eks",
+      "get-token",
+      "--region",
+      var.region,
+      "--cluster-name",
+      module.retail_app_eks.eks_cluster_id,
+    ]
+  }
 }
 
 provider "kubectl" {
   apply_retry_count      = 10
+  load_config_file       = true
+  config_path            = pathexpand("~/.kube/config")
   host                   = module.retail_app_eks.cluster_endpoint
   cluster_ca_certificate = base64decode(module.retail_app_eks.cluster_certificate_authority_data)
-  load_config_file       = false
-  token                  = data.aws_eks_cluster_auth.this.token
 }
 
 provider "helm" {
   kubernetes {
     host                   = module.retail_app_eks.cluster_endpoint
-    token                  = data.aws_eks_cluster_auth.this.token
     cluster_ca_certificate = base64decode(module.retail_app_eks.cluster_certificate_authority_data)
+
+    exec {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      command     = "aws"
+      args = [
+        "eks",
+        "get-token",
+        "--region",
+        var.region,
+        "--cluster-name",
+        module.retail_app_eks.eks_cluster_id,
+      ]
+    }
   }
 }

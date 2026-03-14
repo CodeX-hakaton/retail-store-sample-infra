@@ -41,3 +41,9 @@ variable "opentelemetry_enabled" {
   type        = bool
   default     = false
 }
+
+variable "eks_cluster_admin_principal_arns" {
+  description = "Additional IAM principal ARNs that should receive EKS cluster-admin access."
+  type        = list(string)
+  default     = []
+}

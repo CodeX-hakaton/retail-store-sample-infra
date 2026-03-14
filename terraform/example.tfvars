@@ -6,6 +6,12 @@ vpc_cidr         = "10.0.0.0/16"
 istio_enabled         = false
 opentelemetry_enabled = false
 
+# Optional stable IAM principals that should keep cluster-admin access.
+# If left empty, Terraform grants access to the IAM principal running apply.
+# eks_cluster_admin_principal_arns = [
+#   "arn:aws:iam::123456789012:role/terraform-production",
+# ]
+
 additional_tags = {
   project     = "codex"
   environment = "qa"

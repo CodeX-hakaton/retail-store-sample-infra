@@ -12,7 +12,7 @@ additional_tags = {
   managed_by  = "terraform"
 }
 
-managed_ecr_enabled           = false
+managed_ecr_enabled           = true
 app_deployment_mode           = "argocd"
 argocd_target_revision        = "production"
 cloudflare_zero_trust_enabled = false

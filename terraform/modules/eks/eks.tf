@@ -98,6 +98,33 @@ module "eks_cluster" {
   tags = var.tags
 }
 
+locals {
+  cluster_admin_principal_arns = toset(distinct(concat(
+    [data.aws_iam_session_context.current.issuer_arn],
+    var.eks_cluster_admin_principal_arns
+  )))
+}
+
+resource "aws_eks_access_entry" "cluster_admin" {
+  for_each = local.cluster_admin_principal_arns
+
+  cluster_name  = module.eks_cluster.cluster_name
+  principal_arn = each.value
+  type          = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "cluster_admin" {
+  for_each = aws_eks_access_entry.cluster_admin
+
+  cluster_name  = module.eks_cluster.cluster_name
+  principal_arn = each.value.principal_arn
+  policy_arn    = "arn:${data.aws_partition.current.partition}:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+}
+
 resource "aws_security_group_rule" "dns_udp" {
   type              = "ingress"
   from_port         = 53
@@ -169,6 +196,7 @@ resource "null_resource" "cluster_blocker" {
 resource "null_resource" "addons_blocker" {
   depends_on = [
     time_sleep.addons,
-    aws_eks_addon.adot
+    aws_eks_addon.adot,
+    aws_eks_access_policy_association.cluster_admin
   ]
 }

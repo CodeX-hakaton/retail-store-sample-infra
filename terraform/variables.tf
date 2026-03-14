@@ -33,6 +33,12 @@ variable "opentelemetry_enabled" {
   default     = false
 }
 
+variable "eks_cluster_admin_principal_arns" {
+  description = "Additional IAM principal ARNs that should receive EKS cluster-admin access."
+  type        = list(string)
+  default     = []
+}
+
 variable "additional_tags" {
   description = "Additional tags merged onto the default environment tags."
   type        = map(string)

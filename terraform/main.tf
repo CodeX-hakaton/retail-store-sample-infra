@@ -116,14 +116,15 @@ module "managed_ecr" {
 module "retail_app_eks" {
   source = "./modules/eks"
 
-  environment_name      = var.environment_name
-  cluster_version       = var.cluster_version
-  vpc_id                = module.vpc.inner.vpc_id
-  vpc_cidr              = module.vpc.inner.vpc_cidr_block
-  subnet_ids            = module.vpc.inner.private_subnets
-  opentelemetry_enabled = var.opentelemetry_enabled
-  istio_enabled         = var.istio_enabled
-  tags                  = local.common_tags
+  environment_name                 = var.environment_name
+  cluster_version                  = var.cluster_version
+  vpc_id                           = module.vpc.inner.vpc_id
+  vpc_cidr                         = module.vpc.inner.vpc_cidr_block
+  subnet_ids                       = module.vpc.inner.private_subnets
+  opentelemetry_enabled            = var.opentelemetry_enabled
+  istio_enabled                    = var.istio_enabled
+  eks_cluster_admin_principal_arns = var.eks_cluster_admin_principal_arns
+  tags                             = local.common_tags
 }
 
 module "dependencies" {
