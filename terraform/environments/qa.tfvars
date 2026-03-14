@@ -26,6 +26,7 @@ cloudflare_access_allowed_emails = [
   "artemzaporozec97@gmail.com"
 ]
 
+
 container_image_overrides = {
-  default_tag = "0.0.87"
+  default_tag = "0.0.89"
 }
