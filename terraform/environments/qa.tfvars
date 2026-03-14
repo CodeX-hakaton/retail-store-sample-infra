@@ -25,3 +25,7 @@ cloudflare_access_allowed_emails = [
   "mykola.biloshapka@lnu.edu.ua",
   "artemzaporozec97@gmail.com"
 ]
+
+container_image_overrides = {
+  default_tag = "0.0.87"
+}
