@@ -27,6 +27,7 @@ cloudflare_zero_trust_enabled  = true
 cloudflare_zone_name   = "codex-devops.pp.ua"
 cloudflare_record_name = "staging"
 
+
 container_image_overrides = {
-  default_tag = "0.0.89"
+  default_tag = "0.0.92"
 }
