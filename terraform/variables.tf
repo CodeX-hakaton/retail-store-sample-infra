@@ -33,6 +33,55 @@ variable "opentelemetry_enabled" {
   default     = false
 }
 
+variable "observability_enabled" {
+  description = "Deploy the observability stack for metrics, logs, and Grafana."
+  type        = bool
+  default     = false
+}
+
+variable "observability_namespace" {
+  description = "Namespace where the observability stack is installed."
+  type        = string
+  default     = "observability"
+}
+
+variable "grafana_admin_password" {
+  description = "Optional Grafana admin password override. If omitted, Terraform generates one."
+  type        = string
+  default     = null
+  nullable    = true
+  sensitive   = true
+}
+
+variable "alert_email_smarthost" {
+  description = "SMTP smart host used by Alertmanager, in host:port format."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "alert_email_username" {
+  description = "SMTP username used by Alertmanager."
+  type        = string
+  default     = null
+  nullable    = true
+  sensitive   = true
+}
+
+variable "alert_email_password" {
+  description = "SMTP password used by Alertmanager."
+  type        = string
+  default     = null
+  nullable    = true
+  sensitive   = true
+}
+
+variable "alert_email_recipients" {
+  description = "Email recipients for Alertmanager. Defaults to cloudflare_access_allowed_emails when unset."
+  type        = list(string)
+  default     = []
+}
+
 variable "eks_cluster_admin_principal_arns" {
   description = "Additional IAM principal ARNs that should receive EKS cluster-admin access."
   type        = list(string)
@@ -156,6 +205,32 @@ variable "argocd_public_enabled" {
   description = "Expose the Argo CD server through a public ALB ingress and Cloudflare DNS."
   type        = bool
   default     = false
+}
+
+variable "grafana_public_enabled" {
+  description = "Expose Grafana through a public ALB ingress and Cloudflare DNS."
+  type        = bool
+  default     = false
+}
+
+variable "grafana_public_hostname" {
+  description = "Optional fully-qualified public hostname for Grafana. Overrides grafana_cloudflare_record_name/cloudflare_zone_name when set."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "grafana_cloudflare_record_name" {
+  description = "DNS record name within the Cloudflare zone for the Grafana endpoint."
+  type        = string
+  default     = "grafana"
+}
+
+variable "grafana_origin_tls_acm_certificate_arn" {
+  description = "Optional ACM certificate ARN override for the public Grafana ALB ingress. If omitted, Terraform creates and validates a certificate automatically."
+  type        = string
+  default     = null
+  nullable    = true
 }
 
 variable "argocd_public_hostname" {

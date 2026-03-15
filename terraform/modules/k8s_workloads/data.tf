@@ -64,3 +64,16 @@ data "kubernetes_ingress_v1" "argocd_server" {
     namespace = var.argocd_namespace
   }
 }
+
+data "kubernetes_ingress_v1" "grafana" {
+  count = var.observability_enabled && var.grafana_public_enabled ? 1 : 0
+
+  depends_on = [
+    helm_release.kube_prometheus_stack[0]
+  ]
+
+  metadata {
+    name      = local.grafana_service_name
+    namespace = var.observability_namespace
+  }
+}

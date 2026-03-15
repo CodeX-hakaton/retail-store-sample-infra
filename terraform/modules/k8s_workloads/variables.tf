@@ -13,6 +13,54 @@ variable "opentelemetry_enabled" {
   type        = bool
 }
 
+variable "observability_enabled" {
+  description = "Whether the observability stack should be deployed."
+  type        = bool
+}
+
+variable "observability_namespace" {
+  description = "Namespace where the observability stack is deployed."
+  type        = string
+  default     = "observability"
+}
+
+variable "grafana_admin_password" {
+  description = "Optional Grafana admin password override."
+  type        = string
+  default     = null
+  nullable    = true
+  sensitive   = true
+}
+
+variable "alert_email_smarthost" {
+  description = "SMTP smart host used by Alertmanager, in host:port format."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "alert_email_username" {
+  description = "SMTP username used by Alertmanager."
+  type        = string
+  default     = null
+  nullable    = true
+  sensitive   = true
+}
+
+variable "alert_email_password" {
+  description = "SMTP password used by Alertmanager."
+  type        = string
+  default     = null
+  nullable    = true
+  sensitive   = true
+}
+
+variable "alert_email_recipients" {
+  description = "Recipients for Alertmanager email notifications."
+  type        = list(string)
+  default     = []
+}
+
 variable "tags" {
   description = "Tags applied to AWS resources created by the workloads module."
   type        = map(string)
@@ -52,6 +100,26 @@ variable "argocd_public_enabled" {
 
 variable "argocd_public_hostname" {
   description = "Public hostname used by the Argo CD ingress."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "grafana_public_enabled" {
+  description = "Whether Grafana should be exposed through a public ingress."
+  type        = bool
+  default     = false
+}
+
+variable "grafana_public_hostname" {
+  description = "Public hostname used by the Grafana ingress."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "grafana_origin_tls_acm_certificate_arn" {
+  description = "ACM certificate ARN attached to the Grafana ALB ingress."
   type        = string
   default     = null
   nullable    = true

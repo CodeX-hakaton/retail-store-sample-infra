@@ -124,8 +124,6 @@ Examples of values that are safe to commit:
 - `argocd_public_enabled`
 - `argocd_cloudflare_record_name`
 - `cloudflare_zero_trust_enabled`
-- `cloudflare_access_allowed_emails`
-- `cloudflare_access_allowed_email_domains`
 
 Inject runtime-only values instead of committing them.
 
@@ -134,9 +132,20 @@ Runtime-only values for Cloudflare:
 - `CLOUDFLARE_API_TOKEN`
 - `TF_VAR_cloudflare_zone_id`
 
-Runtime-only value for Cloudflare Zero Trust:
+Runtime-only values for Cloudflare Zero Trust:
 
 - `TF_VAR_cloudflare_account_id`
+- `TF_VAR_cloudflare_access_allowed_emails`
+- `TF_VAR_cloudflare_access_allowed_email_domains`
+- `TF_VAR_cloudflare_access_allowed_identity_provider_ids`
+
+Optional runtime-only observability values:
+
+- `TF_VAR_grafana_admin_password`
+- `TF_VAR_alert_email_smarthost`
+- `TF_VAR_alert_email_username`
+- `TF_VAR_alert_email_password`
+- `TF_VAR_alert_email_recipients`
 
 Default Argo CD repo URL:
 
@@ -162,7 +171,6 @@ Current Cloudflare-related values there:
 - `staging`: `cloudflare_record_name = "staging"`, `cloudflare_zero_trust_enabled = true`
 - `production`: `cloudflare_record_name = "@"`, `cloudflare_zero_trust_enabled = false`
 - all three use `cloudflare_zone_name = "codex-devops.pp.ua"`
-- all three keep the same committed Zero Trust allow-list ready if you switch Access on
 - Argo CD hostnames are `argocd-qa.codex-devops.pp.ua`, `argocd-staging.codex-devops.pp.ua`, and `argocd.codex-devops.pp.ua`
 
 Current Argo CD-related values there:
@@ -198,8 +206,9 @@ The policy includes:
 
 - all addresses in `cloudflare_access_allowed_emails`
 - all domains in `cloudflare_access_allowed_email_domains`
+- any identity providers in `cloudflare_access_allowed_identity_provider_ids`
 
-For all committed environment configs, the allow-list is currently email-based, but Zero Trust itself is off by default.
+Keep those allow-list inputs in runtime environment variables, private tfvars, or CI/CD secrets rather than the committed environment files.
 
 Traffic flow:
 
@@ -226,11 +235,22 @@ When you enable origin TLS, Terraform creates ACM certificates in AWS and valida
 
 ## Injecting Runtime Values
 
+### Using `.env`
+
+The repo root includes a placeholder [`.env`](/Users/admin/personal/hakathon/retail-store-infra/.env) file for runtime-only values. Update it locally, then load it before running Terraform:
+
+```sh
+source ../.env
+```
+
 ### Manual export
 
 ```sh
 export CLOUDFLARE_API_TOKEN="..."
 export TF_VAR_cloudflare_zone_id="..."
+export TF_VAR_cloudflare_access_allowed_emails='["user1@example.com","user2@example.com"]'
+export TF_VAR_cloudflare_access_allowed_email_domains='[]'
+export TF_VAR_cloudflare_access_allowed_identity_provider_ids='[]'
 export TF_VAR_argocd_repo_url="https://github.com/CodeX-hakaton/retail-store-sample-infra.git"
 ```
 
@@ -238,6 +258,16 @@ If Zero Trust is enabled for the target environment:
 
 ```sh
 export TF_VAR_cloudflare_account_id="..."
+```
+
+If observability email or Grafana credentials should be injected instead of generated:
+
+```sh
+export TF_VAR_grafana_admin_password="..."
+export TF_VAR_alert_email_smarthost="smtp.example.com:587"
+export TF_VAR_alert_email_username="alerts@example.com"
+export TF_VAR_alert_email_password="..."
+export TF_VAR_alert_email_recipients='["alerts@example.com"]'
 ```
 
 ### AWS Secrets Manager and SSM example
@@ -262,6 +292,15 @@ If Zero Trust is enabled for that environment:
 export TF_VAR_cloudflare_account_id="$(aws ssm get-parameter \
   --name /retail-store/qa/cloudflare/account-id \
   --query Parameter.Value \
+  --output text)"
+```
+
+Example Zero Trust allow-list injection:
+
+```sh
+export TF_VAR_cloudflare_access_allowed_emails="$(aws secretsmanager get-secret-value \
+  --secret-id /retail-store/qa/cloudflare/access-allowed-emails \
+  --query SecretString \
   --output text)"
 ```
 
@@ -367,11 +406,40 @@ terraform output retail_app_origin_hostname
 terraform output managed_ecr_repository_urls
 ```
 
+## Policy Checks
+
+This repo includes a narrow policy-as-code layer for committed configuration standards.
+
+It checks:
+
+- `terraform/environments/*.tfvars`
+- `terraform/charts/*/values.yaml`
+
+It intentionally does not scan `terraform plan -json` or rendered Kubernetes manifests yet.
+
+Install `conftest`, then run:
+
+```sh
+conftest verify --policy ../policy/env
+conftest verify --policy ../policy/charts
+conftest test environments/*.tfvars --policy ../policy/env --parser hcl2
+conftest test charts/catalog/values.yaml charts/cart/values.yaml charts/checkout/values.yaml charts/orders/values.yaml charts/ui/values.yaml --policy ../policy/charts --parser yaml
+```
+
+The current rules enforce:
+
+- committed environment files must set `expected_aws_account_id`
+- committed environment files must enable `managed_ecr_enabled`
+- Argo CD target revision must match the environment branch when `app_deployment_mode = "argocd"`
+- backup destination region must be set and differ from the source region when backups are enabled
+- chart default `service.type` must be `ClusterIP`
+- chart default security context must set `runAsNonRoot: true` and `readOnlyRootFilesystem: true`
+
 ## Applying Cloudflare Environments
 
 1. Export `CLOUDFLARE_API_TOKEN`.
 2. Export `TF_VAR_cloudflare_zone_id`.
-3. If `cloudflare_zero_trust_enabled = true` for that environment, export `TF_VAR_cloudflare_account_id`.
+3. If `cloudflare_zero_trust_enabled = true` for that environment, export `TF_VAR_cloudflare_account_id` and at least one allow-list input such as `TF_VAR_cloudflare_access_allowed_emails`.
 4. Choose one of the committed var files.
 5. Run `terraform plan -var-file=environments/<env>.tfvars`.
 6. Run `terraform apply -var-file=environments/<env>.tfvars`.
@@ -382,11 +450,7 @@ With the committed environment settings, Terraform will always create Cloudflare
 - `staging.codex-devops.pp.ua`
 - `codex-devops.pp.ua`
 
-If you later enable Zero Trust for an environment, the current allow-list is:
-
-- `oleksijvun@gmail.com`
-- `mykola.biloshapka@lnu.edu.ua`
-- `artemzaporozec97@gmail.com`
+If you later enable Zero Trust for an environment, provide the allow-list through `.env`, private tfvars, or CI/CD variables before planning or applying.
 
 ## Destroy
 
@@ -399,6 +463,7 @@ Use the same injected Cloudflare values for destroy as for apply. `TF_VAR_cloudf
 ## Notes
 
 - Do not commit `CLOUDFLARE_API_TOKEN`.
+- Do not commit `.env`.
 - Do not commit private tfvars containing runtime-only values.
 - Do not commit `backend.hcl`.
 - Prefer environment variables or CI secret injection for Cloudflare provider auth.

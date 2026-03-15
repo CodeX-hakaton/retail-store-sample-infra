@@ -63,10 +63,16 @@ topologySpreadConstraints: []
 
 metrics:
   enabled: true
+  path: '/metrics'
   podAnnotations:
     prometheus.io/scrape: 'true'
     prometheus.io/port: '8080'
     prometheus.io/path: '/metrics'
+  serviceMonitor:
+    enabled: false
+    interval: '30s'
+    scrapeTimeout: '10s'
+    additionalLabels: {}
 
 configMap:
   create: true

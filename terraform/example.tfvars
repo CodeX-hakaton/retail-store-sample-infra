@@ -59,19 +59,14 @@ cloudflare_record_name        = "@"
 # origin_tls_enabled             = true
 # origin_tls_acm_certificate_arn = "arn:aws:acm:eu-north-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
 
-cloudflare_access_allowed_emails = [
-  "oleksijvun@gmail.com",
-  "mykola.biloshapka@lnu.edu.ua",
-  "artemzaporozec97@gmail.com"
-]
-
-# Set these via private tfvars or CI/CD variable injection.
+# Set these via `.env`, private tfvars, or CI/CD variable injection.
+# cloudflare_access_allowed_emails = ["user1@example.com", "user2@example.com"]
+# cloudflare_access_allowed_email_domains = ["example.com"]
+# cloudflare_access_allowed_identity_provider_ids = ["1234567890abcdef"]
 # cloudflare_account_id = "..."
 # cloudflare_zone_id    = "..."
 
 # cloudflare_public_hostname = "shop.codex-devops.pp.ua"
-# cloudflare_access_allowed_email_domains = ["example.com"]
-# cloudflare_access_allowed_identity_provider_ids = ["1234567890abcdef"]
 # cloudflare_zero_trust_organization_enabled = true
 # cloudflare_zero_trust_organization_name    = "example"
 # cloudflare_zero_trust_auth_domain          = "example.cloudflareaccess.com"

@@ -11,8 +11,13 @@ locals {
     orders   = "${local.managed_ecr_registry}/${var.environment_name}-orders"
     ui       = "${local.managed_ecr_registry}/${var.environment_name}-ui"
   } : {}
-  managed_ecr_image_overrides         = { for service, repository_url in local.managed_ecr_repository_urls : service => "${repository_url}:${local.default_image_tag}" }
-  effective_container_image_overrides = merge(local.managed_ecr_image_overrides, var.container_image_overrides)
+  managed_ecr_image_overrides = { for service, repository_url in local.managed_ecr_repository_urls : service => "${repository_url}:${local.default_image_tag}" }
+  normalized_container_image_overrides = {
+    for key, value in var.container_image_overrides : key => value
+    if value != null
+  }
+  effective_container_image_overrides = merge(local.managed_ecr_image_overrides, local.normalized_container_image_overrides)
+  effective_alert_email_recipients    = length(var.alert_email_recipients) > 0 ? var.alert_email_recipients : var.cloudflare_access_allowed_emails
   cloudflare_public_hostname = var.cloudflare_public_hostname != null ? var.cloudflare_public_hostname : (
     var.cloudflare_zone_name == null ? null : (
       contains(["", "@"], trimspace(var.cloudflare_record_name)) ? var.cloudflare_zone_name : "${trimspace(var.cloudflare_record_name)}.${var.cloudflare_zone_name}"
@@ -23,11 +28,19 @@ locals {
       contains(["", "@"], trimspace(var.argocd_cloudflare_record_name)) ? var.cloudflare_zone_name : "${trimspace(var.argocd_cloudflare_record_name)}.${var.cloudflare_zone_name}"
     )
   )
+  grafana_public_hostname = var.grafana_public_hostname != null ? var.grafana_public_hostname : (
+    var.cloudflare_zone_name == null ? null : (
+      contains(["", "@"], trimspace(var.grafana_cloudflare_record_name)) ? var.cloudflare_zone_name : "${trimspace(var.grafana_cloudflare_record_name)}.${var.cloudflare_zone_name}"
+    )
+  )
   normalized_origin_tls_acm_certificate_arn = var.origin_tls_acm_certificate_arn != null ? (
     trimspace(var.origin_tls_acm_certificate_arn) != "" ? var.origin_tls_acm_certificate_arn : null
   ) : null
   normalized_argocd_origin_tls_acm_certificate_arn = var.argocd_origin_tls_acm_certificate_arn != null ? (
     trimspace(var.argocd_origin_tls_acm_certificate_arn) != "" ? var.argocd_origin_tls_acm_certificate_arn : null
+  ) : null
+  normalized_grafana_origin_tls_acm_certificate_arn = var.grafana_origin_tls_acm_certificate_arn != null ? (
+    trimspace(var.grafana_origin_tls_acm_certificate_arn) != "" ? var.grafana_origin_tls_acm_certificate_arn : null
   ) : null
   normalized_aws_backup_destination_region = var.aws_backup_destination_region != null ? (
     trimspace(var.aws_backup_destination_region) != "" ? trimspace(var.aws_backup_destination_region) : null
@@ -35,6 +48,7 @@ locals {
   managed_edge_certificate_domains = distinct(compact([
     var.origin_tls_enabled && local.normalized_origin_tls_acm_certificate_arn == null ? local.cloudflare_public_hostname : null,
     var.argocd_public_enabled && local.normalized_argocd_origin_tls_acm_certificate_arn == null ? local.argocd_public_hostname : null,
+    var.grafana_public_enabled && local.normalized_grafana_origin_tls_acm_certificate_arn == null ? local.grafana_public_hostname : null,
   ]))
   managed_edge_certificate_primary_domain = length(local.managed_edge_certificate_domains) > 0 ? local.managed_edge_certificate_domains[0] : null
   managed_edge_certificate_sans = length(local.managed_edge_certificate_domains) > 1 ? slice(
@@ -48,6 +62,9 @@ locals {
   )
   effective_argocd_origin_tls_acm_certificate_arn = local.normalized_argocd_origin_tls_acm_certificate_arn != null ? local.normalized_argocd_origin_tls_acm_certificate_arn : (
     var.argocd_public_enabled ? local.managed_edge_certificate_arn : null
+  )
+  effective_grafana_origin_tls_acm_certificate_arn = local.normalized_grafana_origin_tls_acm_certificate_arn != null ? local.normalized_grafana_origin_tls_acm_certificate_arn : (
+    var.grafana_public_enabled ? local.managed_edge_certificate_arn : null
   )
 }
 
@@ -173,6 +190,33 @@ resource "null_resource" "argocd_public_config" {
     precondition {
       condition     = trimspace(local.effective_argocd_origin_tls_acm_certificate_arn != null ? local.effective_argocd_origin_tls_acm_certificate_arn : "") != ""
       error_message = "Enable managed certificate creation or set argocd_origin_tls_acm_certificate_arn when argocd_public_enabled is true."
+    }
+  }
+}
+
+resource "null_resource" "grafana_public_config" {
+  count = var.grafana_public_enabled ? 1 : 0
+
+  triggers = {
+    hostname        = local.grafana_public_hostname != null ? local.grafana_public_hostname : ""
+    certificate_arn = local.effective_grafana_origin_tls_acm_certificate_arn != null ? local.effective_grafana_origin_tls_acm_certificate_arn : ""
+    enabled         = tostring(var.observability_enabled)
+  }
+
+  lifecycle {
+    precondition {
+      condition     = var.observability_enabled
+      error_message = "grafana_public_enabled requires observability_enabled = true."
+    }
+
+    precondition {
+      condition     = trimspace(local.grafana_public_hostname != null ? local.grafana_public_hostname : "") != ""
+      error_message = "Set grafana_public_hostname or grafana_cloudflare_record_name/cloudflare_zone_name so Terraform can create the Grafana DNS record."
+    }
+
+    precondition {
+      condition     = trimspace(local.effective_grafana_origin_tls_acm_certificate_arn != null ? local.effective_grafana_origin_tls_acm_certificate_arn : "") != ""
+      error_message = "Enable managed certificate creation or set grafana_origin_tls_acm_certificate_arn when grafana_public_enabled is true."
     }
   }
 }
@@ -321,20 +365,30 @@ module "k8s_workloads" {
     kubernetes = kubernetes
   }
 
-  environment_name                      = var.environment_name
-  istio_enabled                         = var.istio_enabled
-  opentelemetry_enabled                 = var.opentelemetry_enabled
-  tags                                  = local.common_tags
-  app_deployment_mode                   = var.app_deployment_mode
-  argocd_repo_url                       = var.argocd_repo_url
-  argocd_target_revision                = var.argocd_target_revision
-  argocd_namespace                      = var.argocd_namespace
-  argocd_public_enabled                 = var.argocd_public_enabled
-  argocd_public_hostname                = local.argocd_public_hostname
-  argocd_origin_tls_acm_certificate_arn = local.effective_argocd_origin_tls_acm_certificate_arn
-  origin_tls_enabled                    = var.origin_tls_enabled
-  origin_tls_acm_certificate_arn        = local.effective_origin_tls_acm_certificate_arn
-  container_image_overrides             = local.effective_container_image_overrides
+  environment_name                       = var.environment_name
+  istio_enabled                          = var.istio_enabled
+  opentelemetry_enabled                  = var.opentelemetry_enabled
+  observability_enabled                  = var.observability_enabled
+  observability_namespace                = var.observability_namespace
+  grafana_admin_password                 = var.grafana_admin_password
+  alert_email_smarthost                  = var.alert_email_smarthost
+  alert_email_username                   = var.alert_email_username
+  alert_email_password                   = var.alert_email_password
+  alert_email_recipients                 = local.effective_alert_email_recipients
+  grafana_public_enabled                 = var.grafana_public_enabled
+  grafana_public_hostname                = local.grafana_public_hostname
+  grafana_origin_tls_acm_certificate_arn = local.effective_grafana_origin_tls_acm_certificate_arn
+  tags                                   = local.common_tags
+  app_deployment_mode                    = var.app_deployment_mode
+  argocd_repo_url                        = var.argocd_repo_url
+  argocd_target_revision                 = var.argocd_target_revision
+  argocd_namespace                       = var.argocd_namespace
+  argocd_public_enabled                  = var.argocd_public_enabled
+  argocd_public_hostname                 = local.argocd_public_hostname
+  argocd_origin_tls_acm_certificate_arn  = local.effective_argocd_origin_tls_acm_certificate_arn
+  origin_tls_enabled                     = var.origin_tls_enabled
+  origin_tls_acm_certificate_arn         = local.effective_origin_tls_acm_certificate_arn
+  container_image_overrides              = local.effective_container_image_overrides
   security_group_ids = {
     catalog  = module.component_security_groups.catalog_id
     orders   = module.component_security_groups.orders_id
@@ -370,6 +424,7 @@ module "k8s_workloads" {
 
   depends_on = [
     null_resource.argocd_config,
+    null_resource.grafana_public_config,
     null_resource.origin_tls_config,
     module.dependencies,
     module.retail_app_eks
@@ -443,5 +498,38 @@ module "cloudflare_argocd_edge" {
   depends_on = [
     null_resource.cloudflare_config,
     null_resource.argocd_public_config
+  ]
+}
+
+module "cloudflare_grafana_edge" {
+  count  = var.grafana_public_enabled ? 1 : 0
+  source = "./modules/cloudflare_edge"
+
+  account_id         = var.cloudflare_account_id
+  zero_trust_enabled = var.cloudflare_zero_trust_enabled
+  zone_id            = var.cloudflare_zone_id != null ? var.cloudflare_zone_id : ""
+  public_hostname    = local.grafana_public_hostname != null ? local.grafana_public_hostname : ""
+  origin_hostname    = module.k8s_workloads.grafana_origin_hostname
+  proxied            = var.cloudflare_proxied
+
+  access_application_name              = "${var.environment_name}-grafana"
+  access_policy_name                   = "${var.environment_name}-grafana-allow"
+  access_allowed_email_domains         = var.cloudflare_access_allowed_email_domains
+  access_allowed_emails                = var.cloudflare_access_allowed_emails
+  access_allowed_identity_provider_ids = var.cloudflare_access_allowed_identity_provider_ids
+  access_auto_redirect_to_identity     = var.cloudflare_access_auto_redirect_to_identity
+  access_session_duration              = var.cloudflare_access_session_duration
+  access_app_launcher_visible          = var.cloudflare_access_app_launcher_visible
+
+  manage_zero_trust_organization        = false
+  zero_trust_organization_name          = null
+  zero_trust_auth_domain                = null
+  zero_trust_is_ui_read_only            = var.cloudflare_zero_trust_is_ui_read_only
+  zero_trust_session_duration           = var.cloudflare_zero_trust_session_duration
+  zero_trust_ui_read_only_toggle_reason = var.cloudflare_zero_trust_ui_read_only_toggle_reason
+
+  depends_on = [
+    null_resource.cloudflare_config,
+    null_resource.grafana_public_config
   ]
 }

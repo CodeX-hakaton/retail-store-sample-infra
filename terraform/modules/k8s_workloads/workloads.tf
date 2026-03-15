@@ -24,6 +24,10 @@ resource "kubernetes_namespace_v1" "catalog" {
 resource "helm_release" "catalog" {
   count = local.direct_deploy ? 1 : 0
 
+  depends_on = [
+    helm_release.kube_prometheus_stack
+  ]
+
   name  = "catalog"
   chart = "${path.root}/charts/catalog"
 
@@ -35,6 +39,7 @@ resource "helm_release" "catalog" {
       image_tag                     = module.container_images.result.catalog.tag
       opentelemetry_enabled         = var.opentelemetry_enabled
       opentelemetry_instrumentation = local.opentelemetry_instrumentation
+      service_monitor_enabled       = var.observability_enabled
       database_endpoint             = "${var.dependencies.catalog_db_endpoint}:${var.dependencies.catalog_db_port}"
       database_username             = var.dependencies.catalog_db_master_username
       database_password             = var.dependencies.catalog_db_master_password
@@ -58,6 +63,10 @@ resource "kubernetes_namespace_v1" "carts" {
 resource "helm_release" "carts" {
   count = local.direct_deploy ? 1 : 0
 
+  depends_on = [
+    helm_release.kube_prometheus_stack
+  ]
+
   name  = "carts"
   chart = "${path.root}/charts/cart"
 
@@ -69,6 +78,7 @@ resource "helm_release" "carts" {
       image_tag                     = module.container_images.result.cart.tag
       opentelemetry_enabled         = var.opentelemetry_enabled
       opentelemetry_instrumentation = local.opentelemetry_instrumentation
+      service_monitor_enabled       = var.observability_enabled
       role_arn                      = module.iam_assumable_role_carts.iam_role_arn
       table_name                    = var.dependencies.carts_dynamodb_table_name
     })
@@ -90,6 +100,10 @@ resource "kubernetes_namespace_v1" "checkout" {
 resource "helm_release" "checkout" {
   count = local.direct_deploy ? 1 : 0
 
+  depends_on = [
+    helm_release.kube_prometheus_stack
+  ]
+
   name  = "checkout"
   chart = "${path.root}/charts/checkout"
 
@@ -101,6 +115,7 @@ resource "helm_release" "checkout" {
       image_tag                     = module.container_images.result.checkout.tag
       opentelemetry_enabled         = var.opentelemetry_enabled
       opentelemetry_instrumentation = local.opentelemetry_instrumentation
+      service_monitor_enabled       = var.observability_enabled
       redis_address                 = var.dependencies.checkout_elasticache_primary_endpoint
       redis_port                    = var.dependencies.checkout_elasticache_port
       security_group_id             = var.security_group_ids.checkout
@@ -123,6 +138,10 @@ resource "kubernetes_namespace_v1" "orders" {
 resource "helm_release" "orders" {
   count = local.direct_deploy ? 1 : 0
 
+  depends_on = [
+    helm_release.kube_prometheus_stack
+  ]
+
   name  = "orders"
   chart = "${path.root}/charts/orders"
 
@@ -134,6 +153,7 @@ resource "helm_release" "orders" {
       image_tag                     = module.container_images.result.orders.tag
       opentelemetry_enabled         = var.opentelemetry_enabled
       opentelemetry_instrumentation = local.opentelemetry_instrumentation
+      service_monitor_enabled       = var.observability_enabled
       database_endpoint_host        = var.dependencies.orders_db_endpoint
       database_endpoint_port        = var.dependencies.orders_db_port
       database_name                 = var.dependencies.orders_db_database_name
@@ -163,6 +183,7 @@ resource "helm_release" "ui" {
   count = local.direct_deploy ? 1 : 0
 
   depends_on = [
+    helm_release.kube_prometheus_stack,
     helm_release.catalog[0],
     helm_release.carts[0],
     helm_release.checkout[0],
@@ -180,6 +201,7 @@ resource "helm_release" "ui" {
       image_tag                     = module.container_images.result.ui.tag
       opentelemetry_enabled         = var.opentelemetry_enabled
       opentelemetry_instrumentation = local.opentelemetry_instrumentation
+      service_monitor_enabled       = var.observability_enabled
       istio_enabled                 = var.istio_enabled
       service_port                  = local.ui_load_balancer_service_port
       service_annotations           = indent(4, yamlencode(local.ui_load_balancer_service_annotations))

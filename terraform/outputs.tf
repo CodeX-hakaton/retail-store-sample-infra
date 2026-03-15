@@ -58,6 +58,37 @@ output "cloudflare_argocd_access_application_id" {
   value       = var.argocd_public_enabled && var.cloudflare_zero_trust_enabled ? module.cloudflare_argocd_edge[0].access_application_id : null
 }
 
+output "grafana_origin_hostname" {
+  description = "Origin hostname behind the public Grafana endpoint."
+  value       = var.grafana_public_enabled ? module.k8s_workloads.grafana_origin_hostname : null
+}
+
+output "grafana_origin_url" {
+  description = "Direct URL for the Grafana origin ingress."
+  value       = var.grafana_public_enabled ? module.k8s_workloads.grafana_url : null
+}
+
+output "cloudflare_grafana_hostname" {
+  description = "Cloudflare-managed hostname for the Grafana endpoint."
+  value       = var.grafana_public_enabled ? module.cloudflare_grafana_edge[0].hostname : null
+}
+
+output "cloudflare_grafana_url" {
+  description = "Cloudflare URL for the Grafana endpoint."
+  value       = var.grafana_public_enabled ? "https://${module.cloudflare_grafana_edge[0].hostname}" : null
+}
+
+output "cloudflare_grafana_access_application_id" {
+  description = "Cloudflare Zero Trust Access application ID for Grafana when exposed and Zero Trust is enabled."
+  value       = var.grafana_public_enabled && var.cloudflare_zero_trust_enabled ? module.cloudflare_grafana_edge[0].access_application_id : null
+}
+
+output "grafana_admin_password" {
+  description = "Grafana admin password. Sensitive output."
+  value       = var.observability_enabled ? module.k8s_workloads.grafana_admin_password : null
+  sensitive   = true
+}
+
 output "cloudflare_access_application_id" {
   description = "Cloudflare Zero Trust Access application ID when Zero Trust is enabled."
   value       = var.cloudflare_zero_trust_enabled ? module.cloudflare_edge.access_application_id : null

@@ -2,6 +2,10 @@ image:
   repository: ${image_repository}
   tag: ${image_tag}
 
+metrics:
+  serviceMonitor:
+    enabled: ${service_monitor_enabled}
+
 serviceAccount:
   name: carts
   annotations:

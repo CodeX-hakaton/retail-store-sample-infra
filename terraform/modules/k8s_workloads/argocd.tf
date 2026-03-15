@@ -18,6 +18,11 @@ locals {
         }
       }
     }
+    metrics = {
+      serviceMonitor = {
+        enabled = var.observability_enabled
+      }
+    }
     },
     var.opentelemetry_enabled ? {
       opentelemetry = {
@@ -51,6 +56,11 @@ locals {
         }
       }
     }
+    metrics = {
+      serviceMonitor = {
+        enabled = var.observability_enabled
+      }
+    }
     },
     var.opentelemetry_enabled ? {
       opentelemetry = {
@@ -73,6 +83,11 @@ locals {
       }
       endpoints = {
         orders = "http://${var.environment_name}-orders.orders.svc:80"
+      }
+    }
+    metrics = {
+      serviceMonitor = {
+        enabled = var.observability_enabled
       }
     }
     },
@@ -115,6 +130,11 @@ locals {
         }
       }
     }
+    metrics = {
+      serviceMonitor = {
+        enabled = var.observability_enabled
+      }
+    }
     },
     var.opentelemetry_enabled ? {
       opentelemetry = {
@@ -140,6 +160,11 @@ locals {
         carts    = "http://${var.environment_name}-carts.carts.svc:80"
         checkout = "http://${var.environment_name}-checkout.checkout.svc:80"
         orders   = "http://${var.environment_name}-orders.orders.svc:80"
+      }
+    }
+    metrics = {
+      serviceMonitor = {
+        enabled = var.observability_enabled
       }
     }
     },
@@ -328,6 +353,7 @@ resource "kubectl_manifest" "argocd_application" {
   for_each = local.argocd_enabled ? local.argocd_applications : {}
 
   depends_on = [
+    helm_release.kube_prometheus_stack,
     time_sleep.argocd_controller,
     kubernetes_secret_v1.catalog_db,
     kubernetes_secret_v1.orders_db,
