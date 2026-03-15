@@ -39,6 +39,13 @@ variable "eks_cluster_admin_principal_arns" {
   default     = []
 }
 
+variable "expected_aws_account_id" {
+  description = "Expected AWS account ID for the selected environment. Terraform fails fast if the current caller identity does not match."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
 variable "additional_tags" {
   description = "Additional tags merged onto the default environment tags."
   type        = map(string)

@@ -26,7 +26,18 @@ locals {
     users = [{
       name = "terraform"
       user = {
-        token = data.aws_eks_cluster_auth.this.token
+        exec = {
+          apiVersion = "client.authentication.k8s.io/v1beta1"
+          command    = "aws"
+          args = [
+            "eks",
+            "get-token",
+            "--region",
+            data.aws_region.current.name,
+            "--cluster-name",
+            var.cluster.name,
+          ]
+        }
       }
     }]
   })

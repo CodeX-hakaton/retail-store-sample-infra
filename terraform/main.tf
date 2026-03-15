@@ -23,6 +23,20 @@ data "aws_eks_cluster_auth" "this" {
   ]
 }
 
+resource "null_resource" "aws_account_guardrail" {
+  triggers = {
+    current_account_id  = data.aws_caller_identity.current.account_id
+    expected_account_id = coalesce(var.expected_aws_account_id, "")
+  }
+
+  lifecycle {
+    precondition {
+      condition     = var.expected_aws_account_id == null || trimspace(var.expected_aws_account_id) == "" || data.aws_caller_identity.current.account_id == trimspace(var.expected_aws_account_id)
+      error_message = "AWS account mismatch for ${var.environment_name}: expected ${var.expected_aws_account_id}, but the current caller identity is ${data.aws_caller_identity.current.account_id}. Re-run with the correct AWS credentials/profile."
+    }
+  }
+}
+
 resource "null_resource" "argocd_config" {
   count = var.app_deployment_mode == "argocd" ? 1 : 0
 

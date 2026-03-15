@@ -1,7 +1,8 @@
-environment_name = "codex-production"
-region           = "eu-north-1"
-cluster_version  = "1.33"
-vpc_cidr         = "10.2.0.0/16"
+environment_name        = "codex-production"
+expected_aws_account_id = "382764426605"
+region                  = "eu-north-1"
+cluster_version         = "1.33"
+vpc_cidr                = "10.2.0.0/16"
 
 istio_enabled         = false
 opentelemetry_enabled = false

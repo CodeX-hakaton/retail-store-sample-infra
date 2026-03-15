@@ -6,6 +6,9 @@ vpc_cidr         = "10.0.0.0/16"
 istio_enabled         = false
 opentelemetry_enabled = false
 
+# Prevent accidental cross-account applies.
+# expected_aws_account_id = "123456789012"
+
 # Optional stable IAM principals that should keep cluster-admin access.
 # If left empty, Terraform grants access to the IAM principal running apply.
 # eks_cluster_admin_principal_arns = [

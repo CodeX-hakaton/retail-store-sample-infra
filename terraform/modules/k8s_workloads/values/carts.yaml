@@ -3,6 +3,7 @@ image:
   tag: ${image_tag}
 
 serviceAccount:
+  name: carts
   annotations:
     eks.amazonaws.com/role-arn: ${role_arn}
 

@@ -52,11 +52,10 @@ provider "kubernetes" {
 }
 
 provider "kubectl" {
-  apply_retry_count      = 10
-  load_config_file       = true
-  config_path            = pathexpand("~/.kube/config")
-  host                   = module.retail_app_eks.cluster_endpoint
-  cluster_ca_certificate = base64decode(module.retail_app_eks.cluster_certificate_authority_data)
+  apply_retry_count = 10
+  load_config_file  = true
+  config_path       = pathexpand("~/.kube/config")
+  config_context    = "arn:aws:eks:${var.region}:${data.aws_caller_identity.current.account_id}:cluster/${module.retail_app_eks.eks_cluster_id}"
 }
 
 provider "helm" {

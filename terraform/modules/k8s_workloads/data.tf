@@ -1,3 +1,5 @@
+data "aws_region" "current" {}
+
 data "aws_eks_cluster_auth" "this" {
   name = var.cluster.name
 
@@ -23,7 +25,7 @@ data "kubernetes_service" "ui_service_argocd" {
   depends_on = [null_resource.argocd_applications_ready[0]]
 
   metadata {
-    name      = "ui"
+    name      = "${var.environment_name}-ui"
     namespace = "ui"
   }
 }

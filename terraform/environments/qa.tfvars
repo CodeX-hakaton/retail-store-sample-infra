@@ -1,7 +1,8 @@
-environment_name = "codex-qa"
-region           = "eu-north-1"
-cluster_version  = "1.33"
-vpc_cidr         = "10.0.0.0/16"
+environment_name        = "codex-qa"
+expected_aws_account_id = "010829528421"
+region                  = "eu-north-1"
+cluster_version         = "1.33"
+vpc_cidr                = "10.0.0.0/16"
 
 istio_enabled         = false
 opentelemetry_enabled = false

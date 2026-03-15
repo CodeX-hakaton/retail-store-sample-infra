@@ -38,6 +38,7 @@ locals {
       tag        = module.container_images.result.cart.tag
     }
     serviceAccount = {
+      name = "carts"
       annotations = {
         "eks.amazonaws.com/role-arn" = module.iam_assumable_role_carts.iam_role_arn
       }
@@ -71,7 +72,7 @@ locals {
         }
       }
       endpoints = {
-        orders = "http://orders.orders.svc:80"
+        orders = "http://${var.environment_name}-orders.orders.svc:80"
       }
     }
     },
@@ -135,10 +136,10 @@ locals {
     }
     app = {
       endpoints = {
-        catalog  = "http://catalog.catalog.svc:80"
-        carts    = "http://carts.carts.svc:80"
-        checkout = "http://checkout.checkout.svc:80"
-        orders   = "http://orders.orders.svc:80"
+        catalog  = "http://${var.environment_name}-catalog.catalog.svc:80"
+        carts    = "http://${var.environment_name}-carts.carts.svc:80"
+        checkout = "http://${var.environment_name}-checkout.checkout.svc:80"
+        orders   = "http://${var.environment_name}-orders.orders.svc:80"
       }
     }
     },
@@ -170,31 +171,31 @@ locals {
     catalog = {
       name      = "${var.environment_name}-catalog"
       namespace = kubernetes_namespace_v1.catalog.metadata[0].name
-      path      = "charts/catalog"
+      path      = "terraform/charts/catalog"
       values    = yamlencode(local.argocd_catalog_values)
     }
     carts = {
       name      = "${var.environment_name}-carts"
       namespace = kubernetes_namespace_v1.carts.metadata[0].name
-      path      = "charts/cart"
+      path      = "terraform/charts/cart"
       values    = yamlencode(local.argocd_carts_values)
     }
     checkout = {
       name      = "${var.environment_name}-checkout"
       namespace = kubernetes_namespace_v1.checkout.metadata[0].name
-      path      = "charts/checkout"
+      path      = "terraform/charts/checkout"
       values    = yamlencode(local.argocd_checkout_values)
     }
     orders = {
       name      = "${var.environment_name}-orders"
       namespace = kubernetes_namespace_v1.orders.metadata[0].name
-      path      = "charts/orders"
+      path      = "terraform/charts/orders"
       values    = yamlencode(local.argocd_orders_values)
     }
     ui = {
       name      = "${var.environment_name}-ui"
       namespace = kubernetes_namespace_v1.ui.metadata[0].name
-      path      = "charts/ui"
+      path      = "terraform/charts/ui"
       values    = yamlencode(local.argocd_ui_values)
     }
   }
@@ -350,8 +351,18 @@ resource "null_resource" "argocd_applications_ready" {
     command = <<-EOT
       set -euo pipefail
       for app in ${join(" ", [for app in values(local.argocd_applications) : app.name])}; do
-        kubectl wait --for=jsonpath='{.status.sync.status}'=Synced "application/$${app}" -n ${var.argocd_namespace} --timeout=20m --kubeconfig <(echo "$KUBECONFIG" | base64 -d)
-        kubectl wait --for=jsonpath='{.status.health.status}'=Healthy "application/$${app}" -n ${var.argocd_namespace} --timeout=20m --kubeconfig <(echo "$KUBECONFIG" | base64 -d)
+        echo "Waiting for Argo CD application: $${app}"
+
+        if ! kubectl wait --for=jsonpath='{.status.sync.status}'=Synced "application/$${app}" -n ${var.argocd_namespace} --timeout=20m --kubeconfig <(echo "$KUBECONFIG" | base64 -d); then
+          kubectl get "application/$${app}" -n ${var.argocd_namespace} -o yaml --kubeconfig <(echo "$KUBECONFIG" | base64 -d)
+          exit 1
+        fi
+
+        if ! kubectl wait --for=jsonpath='{.status.health.status}'=Healthy "application/$${app}" -n ${var.argocd_namespace} --timeout=20m --kubeconfig <(echo "$KUBECONFIG" | base64 -d); then
+          kubectl get "application/$${app}" -n ${var.argocd_namespace} -o yaml --kubeconfig <(echo "$KUBECONFIG" | base64 -d)
+          kubectl get pods -A --kubeconfig <(echo "$KUBECONFIG" | base64 -d)
+          exit 1
+        fi
       done
     EOT
   }
