@@ -4,6 +4,8 @@ kind: ConfigMap
 metadata:
   name: {{ include "ui.configMapName" . }}
 data:
+  MANAGEMENT_METRICS_DISTRIBUTION_PERCENTILES_HISTOGRAM_HTTP_SERVER_REQUESTS: "true"
+  MANAGEMENT_METRICS_DISTRIBUTION_SLO_HTTP_SERVER_REQUESTS: 100ms,300ms,500ms,1s,2s,5s
   {{- if .Values.app.theme }}
   RETAIL_UI_THEME: {{ .Values.app.theme }}
   {{- end }}

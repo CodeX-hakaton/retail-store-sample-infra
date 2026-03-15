@@ -4,6 +4,8 @@ kind: ConfigMap
 metadata:
   name: {{ include "carts.configMapName" . }}
 data:
+  MANAGEMENT_METRICS_DISTRIBUTION_PERCENTILES_HISTOGRAM_HTTP_SERVER_REQUESTS: "true"
+  MANAGEMENT_METRICS_DISTRIBUTION_SLO_HTTP_SERVER_REQUESTS: 100ms,300ms,500ms,1s,2s,5s
   RETAIL_CART_PERSISTENCE_PROVIDER: {{ .Values.app.persistence.provider }}
   {{- if (eq "dynamodb" .Values.app.persistence.provider) }}
   RETAIL_CART_PERSISTENCE_DYNAMODB_TABLE_NAME: {{ .Values.app.persistence.dynamodb.tableName }}

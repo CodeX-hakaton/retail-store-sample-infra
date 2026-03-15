@@ -212,14 +212,14 @@ resource "kubectl_manifest" "observability_alerts" {
           rules = [
             {
               alert = "RetailHighCpuUtilization"
-              expr  = "100 * sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{namespace=~\"ui|catalog|carts|checkout|orders\", container!=\"\", container!=\"POD\"}[5m])) / clamp_min(sum by (namespace, pod) (kube_pod_container_resource_limits{namespace=~\"ui|catalog|carts|checkout|orders\", resource=\"cpu\", unit=\"core\"}), 0.001) > 80"
+              expr  = "100 * sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{namespace=~\"ui|catalog|carts|checkout|orders\", container!=\"\", container!=\"POD\"}[5m])) / clamp_min(sum by (namespace, pod) (kube_pod_container_resource_requests{namespace=~\"ui|catalog|carts|checkout|orders\", resource=\"cpu\", unit=\"core\"}), 0.001) > 80"
               for   = "10m"
               labels = {
                 severity = "warning"
               }
               annotations = {
-                summary     = "CPU utilization is above 80% of pod limit"
-                description = "Pod {{ $labels.namespace }}/{{ $labels.pod }} has used more than 80% of its CPU limit for 10 minutes."
+                summary     = "CPU utilization is above 80% of pod request"
+                description = "Pod {{ $labels.namespace }}/{{ $labels.pod }} has used more than 80% of its CPU request for 10 minutes."
               }
             },
             {
@@ -236,14 +236,14 @@ resource "kubectl_manifest" "observability_alerts" {
             },
             {
               alert = "RetailHighP95Latency"
-              expr  = "histogram_quantile(0.95, sum by (namespace, service, le) (rate(http_server_requests_seconds_bucket{namespace=~\"ui|catalog|carts|checkout|orders\"}[5m]))) > 1"
+              expr  = "histogram_quantile(0.95, sum by (namespace, job, le) (rate(http_server_requests_seconds_bucket{namespace=~\"ui|catalog|carts|checkout|orders\"}[5m]))) > 1"
               for   = "5m"
               labels = {
                 severity = "warning"
               }
               annotations = {
                 summary     = "P95 request latency is above 1 second"
-                description = "Service {{ $labels.namespace }}/{{ $labels.service }} has had p95 latency above 1 second for 5 minutes."
+                description = "Workload {{ $labels.namespace }}/{{ $labels.job }} has had p95 latency above 1 second for 5 minutes."
               }
             }
           ]
