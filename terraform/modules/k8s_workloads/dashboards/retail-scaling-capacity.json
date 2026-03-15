@@ -133,12 +133,12 @@
       },
       "targets": [
         {
-          "expr": "100 * sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{namespace=~\"ui|catalog|carts|checkout|orders\",container!=\"\",container!=\"POD\"}[5m])) / clamp_min(sum by (namespace, pod) (kube_pod_container_resource_limits{namespace=~\"ui|catalog|carts|checkout|orders\",resource=\"cpu\",unit=\"core\"}), 0.001)",
+          "expr": "100 * sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{namespace=~\"ui|catalog|carts|checkout|orders\",container!=\"\",container!=\"POD\"}[5m])) / clamp_min(sum by (namespace, pod) (kube_pod_container_resource_requests{namespace=~\"ui|catalog|carts|checkout|orders\",resource=\"cpu\",unit=\"core\"}), 0.001)",
           "legendFormat": "{{namespace}}/{{pod}}",
           "refId": "A"
         }
       ],
-      "title": "Pod CPU Usage vs Limit",
+      "title": "Pod CPU Usage vs Request",
       "type": "timeseries"
     },
     {

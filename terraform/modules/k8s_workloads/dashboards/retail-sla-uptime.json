@@ -107,8 +107,8 @@
       },
       "targets": [
         {
-          "expr": "avg by (namespace, service) (avg_over_time(up{namespace=~\"ui|catalog|carts|checkout|orders\"}[5m])) * 100",
-          "legendFormat": "{{namespace}}/{{service}}",
+          "expr": "avg by (namespace, job) (avg_over_time(up{namespace=~\"ui|catalog|carts|checkout|orders\"}[5m])) * 100",
+          "legendFormat": "{{namespace}}/{{job}}",
           "refId": "A"
         }
       ],
@@ -144,8 +144,8 @@
       },
       "targets": [
         {
-          "expr": "sum by (namespace, service) (rate(http_server_requests_seconds_count{namespace=~\"ui|catalog|carts|checkout|orders\"}[5m]))",
-          "legendFormat": "{{namespace}}/{{service}}",
+          "expr": "sum by (namespace, job) (rate(http_server_requests_seconds_count{namespace=~\"ui|catalog|carts|checkout|orders\"}[5m]))",
+          "legendFormat": "{{namespace}}/{{job}}",
           "refId": "A"
         }
       ],
@@ -181,8 +181,8 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (namespace, service, le) (rate(http_server_requests_seconds_bucket{namespace=~\"ui|catalog|carts|checkout|orders\"}[5m])))",
-          "legendFormat": "{{namespace}}/{{service}}",
+          "expr": "histogram_quantile(0.95, sum by (namespace, job, le) (rate(http_server_requests_seconds_bucket{namespace=~\"ui|catalog|carts|checkout|orders\"}[5m])))",
+          "legendFormat": "{{namespace}}/{{job}}",
           "refId": "A"
         }
       ],
@@ -218,8 +218,8 @@
       },
       "targets": [
         {
-          "expr": "100 * sum by (namespace, service) (rate(http_server_requests_seconds_count{namespace=~\"ui|catalog|carts|checkout|orders\",status=~\"5..\"}[5m])) / clamp_min(sum by (namespace, service) (rate(http_server_requests_seconds_count{namespace=~\"ui|catalog|carts|checkout|orders\"}[5m])), 0.001)",
-          "legendFormat": "{{namespace}}/{{service}}",
+          "expr": "100 * ((sum by (namespace, job) (rate(http_server_requests_seconds_count{namespace=~\"ui|catalog|carts|checkout|orders\",status=~\"5..\"}[5m]))) or on (namespace, job) (0 * sum by (namespace, job) (rate(http_server_requests_seconds_count{namespace=~\"ui|catalog|carts|checkout|orders\"}[5m])))) / clamp_min(sum by (namespace, job) (rate(http_server_requests_seconds_count{namespace=~\"ui|catalog|carts|checkout|orders\"}[5m])), 0.001)",
+          "legendFormat": "{{namespace}}/{{job}}",
           "refId": "A"
         }
       ],
