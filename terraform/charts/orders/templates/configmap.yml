@@ -4,8 +4,6 @@ kind: ConfigMap
 metadata:
   name: {{ include "orders.configMapName" . }}
 data:
-  MANAGEMENT_METRICS_DISTRIBUTION_PERCENTILES_HISTOGRAM_HTTP_SERVER_REQUESTS: "true"
-  MANAGEMENT_METRICS_DISTRIBUTION_SLO_HTTP_SERVER_REQUESTS: 100ms,300ms,500ms,1s,2s,5s
   RETAIL_ORDERS_MESSAGING_PROVIDER: {{ .Values.app.messaging.provider }}
   {{- if (eq "rabbitmq" .Values.app.messaging.provider) }}
   RETAIL_ORDERS_MESSAGING_RABBITMQ_ADDRESSES: {{ include "orders.rabbitmq.addresses" . }}
