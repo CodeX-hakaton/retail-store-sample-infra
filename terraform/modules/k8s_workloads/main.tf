@@ -120,11 +120,11 @@ locals {
       resolve_timeout = "5m"
     }
     route = {
-      receiver = "null"
+      receiver = "default-receiver"
     }
     receivers = [
       {
-        name = "null"
+        name = "default-receiver"
       }
     ]
   })

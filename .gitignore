@@ -5,6 +5,9 @@
 .idea/
 .vscode/
 
+# Local runtime environment files
+.env
+
 # Terraform local working directories
 **/.terraform/
 
