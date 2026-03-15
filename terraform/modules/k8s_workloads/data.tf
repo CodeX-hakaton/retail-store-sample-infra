@@ -1,3 +1,5 @@
+data "aws_region" "current" {}
+
 data "aws_eks_cluster_auth" "this" {
   name = var.cluster.name
 
@@ -23,7 +25,7 @@ data "kubernetes_service" "ui_service_argocd" {
   depends_on = [null_resource.argocd_applications_ready[0]]
 
   metadata {
-    name      = "ui"
+    name      = "${var.environment_name}-ui"
     namespace = "ui"
   }
 }
@@ -47,5 +49,31 @@ data "kubernetes_service" "istio_ingress_service_argocd" {
   metadata {
     name      = "istio-ingress"
     namespace = "istio-ingress"
+  }
+}
+
+data "kubernetes_ingress_v1" "argocd_server" {
+  count = local.argocd_enabled && var.argocd_public_enabled ? 1 : 0
+
+  depends_on = [
+    helm_release.argocd[0]
+  ]
+
+  metadata {
+    name      = "argocd-server"
+    namespace = var.argocd_namespace
+  }
+}
+
+data "kubernetes_ingress_v1" "grafana" {
+  count = var.observability_enabled && var.grafana_public_enabled ? 1 : 0
+
+  depends_on = [
+    helm_release.kube_prometheus_stack[0]
+  ]
+
+  metadata {
+    name      = local.grafana_service_name
+    namespace = var.observability_namespace
   }
 }

@@ -1,0 +1,51 @@
+version: 2.1
+
+jobs:
+  qa-load-test:
+    docker:
+      - image: cimg/base:2024.12
+    resource_class: medium
+    environment:
+      TARGET_ENV: qa
+      TARGET_URL: https://qa.codex-devops.pp.ua
+      K6_VUS: "10"
+      K6_DURATION: "300s"
+      K6_SLEEP: "1"
+      LOAD_TEST_SOURCE: circleci-qa-to-staging-pr
+      LOAD_TEST_HEADER_NAME: X-Load-Test-Scenario
+      LOAD_TEST_HEADER_VALUE: qa-to-staging-pr-opened
+    steps:
+      - checkout
+      - run:
+          name: Install k6
+          command: |
+            sudo gpg -k
+            sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+            echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+            sudo apt-get update
+            sudo apt-get install -y k6
+      - run:
+          name: Run QA load test
+          command: |
+            mkdir -p load-tests/results
+            k6_exit_code=0
+            k6 run load-tests/qa.js || k6_exit_code=$?
+            cat load-tests/results/summary.txt || true
+            printf '%s' "${k6_exit_code}" > load-tests/results/k6_exit_code.txt
+      - store_artifacts:
+          path: load-tests/results
+          destination: qa-load-test-results
+      - run:
+          name: Fail job when load test fails
+          command: |
+            exit "$(cat load-tests/results/k6_exit_code.txt)"
+
+workflows:
+  qa-to-staging-pr-load-test:
+    when: >
+      pipeline.event.name == "pull_request" and
+      pipeline.event.action == "opened" and
+      pipeline.event.github.pull_request.head.ref == "qa" and
+      pipeline.event.github.pull_request.base.ref == "staging"
+    jobs:
+      - qa-load-test

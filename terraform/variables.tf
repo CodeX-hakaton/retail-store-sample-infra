@@ -33,10 +33,66 @@ variable "opentelemetry_enabled" {
   default     = false
 }
 
+variable "observability_enabled" {
+  description = "Deploy the observability stack for metrics, logs, and Grafana."
+  type        = bool
+  default     = false
+}
+
+variable "observability_namespace" {
+  description = "Namespace where the observability stack is installed."
+  type        = string
+  default     = "observability"
+}
+
+variable "grafana_admin_password" {
+  description = "Optional Grafana admin password override. If omitted, Terraform generates one."
+  type        = string
+  default     = null
+  nullable    = true
+  sensitive   = true
+}
+
+variable "alert_email_smarthost" {
+  description = "SMTP smart host used by Alertmanager, in host:port format."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "alert_email_username" {
+  description = "SMTP username used by Alertmanager."
+  type        = string
+  default     = null
+  nullable    = true
+  sensitive   = true
+}
+
+variable "alert_email_password" {
+  description = "SMTP password used by Alertmanager."
+  type        = string
+  default     = null
+  nullable    = true
+  sensitive   = true
+}
+
+variable "alert_email_recipients" {
+  description = "Email recipients for Alertmanager. Defaults to cloudflare_access_allowed_emails when unset."
+  type        = list(string)
+  default     = []
+}
+
 variable "eks_cluster_admin_principal_arns" {
   description = "Additional IAM principal ARNs that should receive EKS cluster-admin access."
   type        = list(string)
   default     = []
+}
+
+variable "expected_aws_account_id" {
+  description = "Expected AWS account ID for the selected environment. Terraform fails fast if the current caller identity does not match."
+  type        = string
+  default     = null
+  nullable    = true
 }
 
 variable "additional_tags" {
@@ -72,6 +128,49 @@ variable "managed_ecr_force_delete" {
   default     = false
 }
 
+variable "aws_backup_enabled" {
+  description = "Enable AWS Backup for durable data behind the stateless application services."
+  type        = bool
+  default     = false
+}
+
+variable "aws_backup_destination_region" {
+  description = "Secondary AWS region that receives cross-region backup copies when aws_backup_enabled is true."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "aws_backup_schedule" {
+  description = "AWS Backup cron expression for the daily backup rule."
+  type        = string
+  default     = "cron(0 3 * * ? *)"
+}
+
+variable "aws_backup_start_window_minutes" {
+  description = "Minutes AWS Backup can wait before starting a scheduled job."
+  type        = number
+  default     = 60
+}
+
+variable "aws_backup_completion_window_minutes" {
+  description = "Minutes AWS Backup can spend completing a scheduled job."
+  type        = number
+  default     = 180
+}
+
+variable "aws_backup_delete_after_days" {
+  description = "Retention period in days for backups stored in the primary region."
+  type        = number
+  default     = 35
+}
+
+variable "aws_backup_copy_delete_after_days" {
+  description = "Retention period in days for copies stored in the disaster recovery region."
+  type        = number
+  default     = 90
+}
+
 variable "app_deployment_mode" {
   description = "How application workloads are deployed into the cluster."
   type        = string
@@ -100,6 +199,58 @@ variable "argocd_namespace" {
   description = "Namespace where Argo CD is installed."
   type        = string
   default     = "argocd"
+}
+
+variable "argocd_public_enabled" {
+  description = "Expose the Argo CD server through a public ALB ingress and Cloudflare DNS."
+  type        = bool
+  default     = false
+}
+
+variable "grafana_public_enabled" {
+  description = "Expose Grafana through a public ALB ingress and Cloudflare DNS."
+  type        = bool
+  default     = false
+}
+
+variable "grafana_public_hostname" {
+  description = "Optional fully-qualified public hostname for Grafana. Overrides grafana_cloudflare_record_name/cloudflare_zone_name when set."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "grafana_cloudflare_record_name" {
+  description = "DNS record name within the Cloudflare zone for the Grafana endpoint."
+  type        = string
+  default     = "grafana"
+}
+
+variable "grafana_origin_tls_acm_certificate_arn" {
+  description = "Optional ACM certificate ARN override for the public Grafana ALB ingress. If omitted, Terraform creates and validates a certificate automatically."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "argocd_public_hostname" {
+  description = "Optional fully-qualified public hostname for Argo CD. Overrides argocd_cloudflare_record_name/cloudflare_zone_name when set."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "argocd_cloudflare_record_name" {
+  description = "DNS record name within the Cloudflare zone for the Argo CD endpoint."
+  type        = string
+  default     = "argocd"
+}
+
+variable "argocd_origin_tls_acm_certificate_arn" {
+  description = "Optional ACM certificate ARN override for the public Argo CD ALB ingress. If omitted, Terraform creates and validates a certificate automatically."
+  type        = string
+  default     = null
+  nullable    = true
 }
 
 variable "cloudflare_account_id" {
@@ -140,6 +291,19 @@ variable "cloudflare_proxied" {
   description = "Whether the Cloudflare DNS record should proxy traffic."
   type        = bool
   default     = true
+}
+
+variable "origin_tls_enabled" {
+  description = "Terminate HTTPS on the public AWS load balancer instead of exposing the origin over plain HTTP. Currently supported when istio_enabled is false."
+  type        = bool
+  default     = false
+}
+
+variable "origin_tls_acm_certificate_arn" {
+  description = "Optional ACM certificate ARN override attached to the public AWS load balancer when origin_tls_enabled is true. If omitted, Terraform creates and validates a certificate automatically."
+  type        = string
+  default     = null
+  nullable    = true
 }
 
 variable "cloudflare_access_application_name" {
