@@ -32,15 +32,32 @@ container_image_overrides = {
 managed_ecr_enabled = false
 # managed_ecr_force_delete = true
 
+# Optional AWS Backup protection for the durable data behind the stateless apps.
+# This currently covers the Aurora clusters for catalog and orders plus the
+# carts DynamoDB table, then copies recovery points into a second AWS region.
+# aws_backup_enabled = true
+# aws_backup_destination_region = "eu-central-1"
+# aws_backup_schedule = "cron(0 3 * * ? *)"
+# aws_backup_delete_after_days = 35
+# aws_backup_copy_delete_after_days = 90
+
 # Optional GitOps deployment via Argo CD.
 app_deployment_mode = "terraform"
 # argocd_repo_url = "https://github.com/CodeX-hakaton/retail-store-sample-infra.git"
 # argocd_target_revision = "qa"
+# argocd_public_enabled = true
+# argocd_cloudflare_record_name = "argocd-qa"
+# argocd_origin_tls_acm_certificate_arn = "arn:aws:acm:eu-north-1:123456789012:certificate/11111111-1111-1111-1111-111111111111" # optional override; Terraform creates one by default
 
 # Cloudflare DNS is always managed by Terraform for the public app hostname.
 cloudflare_zero_trust_enabled = false
 cloudflare_zone_name          = "codex-devops.pp.ua"
 cloudflare_record_name        = "@"
+
+# Optional origin TLS at the AWS load balancer. Terraform creates and validates
+# an ACM certificate through Cloudflare automatically unless you set an override ARN.
+# origin_tls_enabled             = true
+# origin_tls_acm_certificate_arn = "arn:aws:acm:eu-north-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
 
 cloudflare_access_allowed_emails = [
   "oleksijvun@gmail.com",

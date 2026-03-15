@@ -44,6 +44,39 @@ variable "argocd_namespace" {
   default     = "argocd"
 }
 
+variable "argocd_public_enabled" {
+  description = "Whether Argo CD should be exposed through a public ingress."
+  type        = bool
+  default     = false
+}
+
+variable "argocd_public_hostname" {
+  description = "Public hostname used by the Argo CD ingress."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "argocd_origin_tls_acm_certificate_arn" {
+  description = "ACM certificate ARN attached to the Argo CD ALB ingress."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "origin_tls_enabled" {
+  description = "Whether the UI LoadBalancer should terminate TLS with ACM."
+  type        = bool
+  default     = false
+}
+
+variable "origin_tls_acm_certificate_arn" {
+  description = "ACM certificate ARN attached to the UI LoadBalancer when origin_tls_enabled is true."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
 variable "container_image_overrides" {
   description = "Optional image overrides for the retail application components."
   type = object({

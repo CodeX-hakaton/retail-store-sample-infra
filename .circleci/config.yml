@@ -9,7 +9,7 @@ jobs:
       TARGET_ENV: qa
       TARGET_URL: https://qa.codex-devops.pp.ua
       K6_VUS: "10"
-      K6_DURATION: "30s"
+      K6_DURATION: "300s"
       K6_SLEEP: "1"
       LOAD_TEST_SOURCE: circleci-qa-to-staging-pr
       LOAD_TEST_HEADER_NAME: X-Load-Test-Scenario
@@ -42,7 +42,6 @@ jobs:
 
 workflows:
   qa-to-staging-pr-load-test:
-    # Requires a CircleCI GitHub App trigger configured for the "PR Opened" event.
     when: >
       pipeline.event.name == "pull_request" and
       pipeline.event.action == "opened" and

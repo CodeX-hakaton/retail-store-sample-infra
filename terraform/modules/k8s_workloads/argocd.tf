@@ -157,13 +157,9 @@ locals {
     } : {},
     !var.istio_enabled ? {
       service = {
-        type = "LoadBalancer"
-        annotations = {
-          "service.beta.kubernetes.io/aws-load-balancer-type"            = "external"
-          "service.beta.kubernetes.io/aws-load-balancer-scheme"          = "internet-facing"
-          "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type" = "ip"
-          "service.beta.kubernetes.io/aws-load-balancer-attributes"      = "load_balancing.cross_zone.enabled=true"
-        }
+        type        = "LoadBalancer"
+        port        = local.ui_load_balancer_service_port
+        annotations = local.ui_load_balancer_service_annotations
       }
   } : {})
 
@@ -225,6 +221,49 @@ resource "helm_release" "argocd" {
   chart      = "argo-cd"
   namespace  = kubernetes_namespace_v1.argocd[0].metadata[0].name
   wait       = true
+
+  values = [
+    yamlencode({
+      global = var.argocd_public_enabled ? {
+        domain = var.argocd_public_hostname
+      } : {}
+      configs = {
+        cm = var.argocd_public_enabled ? {
+          url = "https://${var.argocd_public_hostname}"
+        } : {}
+        params = var.argocd_public_enabled ? {
+          "server.insecure" = "true"
+        } : {}
+      }
+      server = {
+        ingress = var.argocd_public_enabled ? {
+          enabled          = true
+          https            = false
+          ingressClassName = "alb"
+          hostname         = var.argocd_public_hostname
+          path             = "/"
+          pathType         = "Prefix"
+          annotations = {
+            "alb.ingress.kubernetes.io/scheme"           = "internet-facing"
+            "alb.ingress.kubernetes.io/target-type"      = "ip"
+            "alb.ingress.kubernetes.io/backend-protocol" = "HTTP"
+            "alb.ingress.kubernetes.io/listen-ports"     = "[{\"HTTPS\":443}]"
+            "alb.ingress.kubernetes.io/ssl-redirect"     = "443"
+            "alb.ingress.kubernetes.io/healthcheck-path" = "/healthz"
+            "alb.ingress.kubernetes.io/certificate-arn"  = var.argocd_origin_tls_acm_certificate_arn
+          }
+          } : {
+          enabled          = false
+          https            = false
+          ingressClassName = ""
+          hostname         = ""
+          path             = "/"
+          pathType         = "Prefix"
+          annotations      = {}
+        }
+      }
+    })
+  ]
 }
 
 resource "time_sleep" "argocd_controller" {
@@ -334,8 +373,8 @@ resource "null_resource" "argocd_applications_ready" {
 
   triggers = {
     application_names = join(",", [for app in values(local.argocd_applications) : app.name])
-    target_revision   = coalesce(var.argocd_target_revision, "")
-    repo_url          = coalesce(var.argocd_repo_url, "")
+    target_revision   = var.argocd_target_revision != null ? var.argocd_target_revision : ""
+    repo_url          = var.argocd_repo_url != null ? var.argocd_repo_url : ""
   }
 
   depends_on = [

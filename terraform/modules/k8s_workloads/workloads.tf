@@ -181,6 +181,8 @@ resource "helm_release" "ui" {
       opentelemetry_enabled         = var.opentelemetry_enabled
       opentelemetry_instrumentation = local.opentelemetry_instrumentation
       istio_enabled                 = var.istio_enabled
+      service_port                  = local.ui_load_balancer_service_port
+      service_annotations           = indent(4, yamlencode(local.ui_load_balancer_service_annotations))
     })
   ]
 }

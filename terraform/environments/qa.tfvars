@@ -16,6 +16,9 @@ additional_tags = {
 managed_ecr_enabled           = true
 app_deployment_mode           = "argocd"
 argocd_target_revision        = "qa"
+origin_tls_enabled            = true
+argocd_public_enabled         = true
+argocd_cloudflare_record_name = "argocd-qa"
 cloudflare_zero_trust_enabled = true
 
 cloudflare_zone_name   = "codex-devops.pp.ua"

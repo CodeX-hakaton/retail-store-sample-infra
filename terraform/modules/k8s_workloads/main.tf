@@ -4,6 +4,23 @@ locals {
   istio_labels = {
     istio-injection = "enabled"
   }
+  ui_load_balancer_service_port = var.origin_tls_enabled ? 443 : 80
+  ui_load_balancer_service_annotations = merge(
+    {
+      "service.beta.kubernetes.io/aws-load-balancer-type"            = "external"
+      "service.beta.kubernetes.io/aws-load-balancer-scheme"          = "internet-facing"
+      "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type" = "ip"
+      "service.beta.kubernetes.io/aws-load-balancer-attributes"      = "load_balancing.cross_zone.enabled=true"
+    },
+    var.origin_tls_enabled ? {
+      "service.beta.kubernetes.io/aws-load-balancer-ssl-cert"                  = var.origin_tls_acm_certificate_arn
+      "service.beta.kubernetes.io/aws-load-balancer-ssl-ports"                 = "443"
+      "service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol"      = "HTTP"
+      "service.beta.kubernetes.io/aws-load-balancer-healthcheck-port"          = "8080"
+      "service.beta.kubernetes.io/aws-load-balancer-healthcheck-path"          = "/actuator/health"
+      "service.beta.kubernetes.io/aws-load-balancer-healthcheck-success-codes" = "200-399"
+    } : {}
+  )
 
   kubeconfig = yamlencode({
     apiVersion      = "v1"

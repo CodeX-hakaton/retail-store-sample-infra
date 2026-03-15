@@ -51,3 +51,16 @@ data "kubernetes_service" "istio_ingress_service_argocd" {
     namespace = "istio-ingress"
   }
 }
+
+data "kubernetes_ingress_v1" "argocd_server" {
+  count = local.argocd_enabled && var.argocd_public_enabled ? 1 : 0
+
+  depends_on = [
+    helm_release.argocd[0]
+  ]
+
+  metadata {
+    name      = "argocd-server"
+    namespace = var.argocd_namespace
+  }
+}

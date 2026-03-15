@@ -18,7 +18,7 @@ terraform {
     }
     helm = {
       source  = "hashicorp/helm"
-      version = "~> 2.17.0"
+      version = "~> 2.9.0"
     }
     kubectl = {
       source  = "alekc/kubectl"
@@ -29,6 +29,11 @@ terraform {
 
 provider "aws" {
   region = var.region
+}
+
+provider "aws" {
+  alias  = "backup_replica"
+  region = coalesce(var.aws_backup_destination_region, var.region)
 }
 
 provider "cloudflare" {}

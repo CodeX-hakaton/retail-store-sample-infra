@@ -1,15 +1,53 @@
 locals {
-  image_catalog_metadata              = jsondecode(file("${path.module}/modules/images/generated.tf.json"))
-  default_image_tag                   = coalesce(try(var.container_image_overrides.default_tag, null), local.image_catalog_metadata.locals.published_tag)
-  security_groups_active              = !var.opentelemetry_enabled
-  common_tags                         = merge(module.tags.result, var.additional_tags)
-  managed_ecr_registry                = var.managed_ecr_enabled ? "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com" : null
-  managed_ecr_image_overrides         = var.managed_ecr_enabled ? { for service, repository_url in module.managed_ecr[0].repository_urls : service => "${repository_url}:${local.default_image_tag}" } : {}
+  image_catalog_metadata = jsondecode(file("${path.module}/modules/images/generated.tf.json"))
+  default_image_tag      = coalesce(try(var.container_image_overrides.default_tag, null), local.image_catalog_metadata.locals.published_tag)
+  security_groups_active = !var.opentelemetry_enabled
+  common_tags            = merge(module.tags.result, var.additional_tags)
+  managed_ecr_registry   = var.managed_ecr_enabled ? "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com" : null
+  managed_ecr_repository_urls = var.managed_ecr_enabled ? {
+    catalog  = "${local.managed_ecr_registry}/${var.environment_name}-catalog"
+    cart     = "${local.managed_ecr_registry}/${var.environment_name}-cart"
+    checkout = "${local.managed_ecr_registry}/${var.environment_name}-checkout"
+    orders   = "${local.managed_ecr_registry}/${var.environment_name}-orders"
+    ui       = "${local.managed_ecr_registry}/${var.environment_name}-ui"
+  } : {}
+  managed_ecr_image_overrides         = { for service, repository_url in local.managed_ecr_repository_urls : service => "${repository_url}:${local.default_image_tag}" }
   effective_container_image_overrides = merge(local.managed_ecr_image_overrides, var.container_image_overrides)
   cloudflare_public_hostname = var.cloudflare_public_hostname != null ? var.cloudflare_public_hostname : (
     var.cloudflare_zone_name == null ? null : (
       contains(["", "@"], trimspace(var.cloudflare_record_name)) ? var.cloudflare_zone_name : "${trimspace(var.cloudflare_record_name)}.${var.cloudflare_zone_name}"
     )
+  )
+  argocd_public_hostname = var.argocd_public_hostname != null ? var.argocd_public_hostname : (
+    var.cloudflare_zone_name == null ? null : (
+      contains(["", "@"], trimspace(var.argocd_cloudflare_record_name)) ? var.cloudflare_zone_name : "${trimspace(var.argocd_cloudflare_record_name)}.${var.cloudflare_zone_name}"
+    )
+  )
+  normalized_origin_tls_acm_certificate_arn = var.origin_tls_acm_certificate_arn != null ? (
+    trimspace(var.origin_tls_acm_certificate_arn) != "" ? var.origin_tls_acm_certificate_arn : null
+  ) : null
+  normalized_argocd_origin_tls_acm_certificate_arn = var.argocd_origin_tls_acm_certificate_arn != null ? (
+    trimspace(var.argocd_origin_tls_acm_certificate_arn) != "" ? var.argocd_origin_tls_acm_certificate_arn : null
+  ) : null
+  normalized_aws_backup_destination_region = var.aws_backup_destination_region != null ? (
+    trimspace(var.aws_backup_destination_region) != "" ? trimspace(var.aws_backup_destination_region) : null
+  ) : null
+  managed_edge_certificate_domains = distinct(compact([
+    var.origin_tls_enabled && local.normalized_origin_tls_acm_certificate_arn == null ? local.cloudflare_public_hostname : null,
+    var.argocd_public_enabled && local.normalized_argocd_origin_tls_acm_certificate_arn == null ? local.argocd_public_hostname : null,
+  ]))
+  managed_edge_certificate_primary_domain = length(local.managed_edge_certificate_domains) > 0 ? local.managed_edge_certificate_domains[0] : null
+  managed_edge_certificate_sans = length(local.managed_edge_certificate_domains) > 1 ? slice(
+    local.managed_edge_certificate_domains,
+    1,
+    length(local.managed_edge_certificate_domains)
+  ) : []
+  managed_edge_certificate_arn = try(module.edge_certificate[0].certificate_arn, null)
+  effective_origin_tls_acm_certificate_arn = local.normalized_origin_tls_acm_certificate_arn != null ? local.normalized_origin_tls_acm_certificate_arn : (
+    var.origin_tls_enabled ? local.managed_edge_certificate_arn : null
+  )
+  effective_argocd_origin_tls_acm_certificate_arn = local.normalized_argocd_origin_tls_acm_certificate_arn != null ? local.normalized_argocd_origin_tls_acm_certificate_arn : (
+    var.argocd_public_enabled ? local.managed_edge_certificate_arn : null
   )
 }
 
@@ -26,12 +64,16 @@ data "aws_eks_cluster_auth" "this" {
 resource "null_resource" "aws_account_guardrail" {
   triggers = {
     current_account_id  = data.aws_caller_identity.current.account_id
-    expected_account_id = coalesce(var.expected_aws_account_id, "")
+    expected_account_id = var.expected_aws_account_id != null ? var.expected_aws_account_id : ""
   }
 
   lifecycle {
     precondition {
-      condition     = var.expected_aws_account_id == null || trimspace(var.expected_aws_account_id) == "" || data.aws_caller_identity.current.account_id == trimspace(var.expected_aws_account_id)
+      condition = (
+        var.expected_aws_account_id == null ? true : (
+          trimspace(var.expected_aws_account_id) == "" ? true : data.aws_caller_identity.current.account_id == trimspace(var.expected_aws_account_id)
+        )
+      )
       error_message = "AWS account mismatch for ${var.environment_name}: expected ${var.expected_aws_account_id}, but the current caller identity is ${data.aws_caller_identity.current.account_id}. Re-run with the correct AWS credentials/profile."
     }
   }
@@ -41,18 +83,18 @@ resource "null_resource" "argocd_config" {
   count = var.app_deployment_mode == "argocd" ? 1 : 0
 
   triggers = {
-    repo_url        = coalesce(var.argocd_repo_url, "")
-    target_revision = coalesce(var.argocd_target_revision, "")
+    repo_url        = var.argocd_repo_url != null ? var.argocd_repo_url : ""
+    target_revision = var.argocd_target_revision != null ? var.argocd_target_revision : ""
   }
 
   lifecycle {
     precondition {
-      condition     = var.argocd_repo_url != null && trimspace(var.argocd_repo_url) != ""
+      condition     = trimspace(var.argocd_repo_url != null ? var.argocd_repo_url : "") != ""
       error_message = "argocd_repo_url must be set when app_deployment_mode is \"argocd\"."
     }
 
     precondition {
-      condition     = var.argocd_target_revision != null && trimspace(var.argocd_target_revision) != ""
+      condition     = trimspace(var.argocd_target_revision != null ? var.argocd_target_revision : "") != ""
       error_message = "argocd_target_revision must be set when app_deployment_mode is \"argocd\"."
     }
   }
@@ -60,26 +102,101 @@ resource "null_resource" "argocd_config" {
 
 resource "null_resource" "cloudflare_config" {
   triggers = {
-    zone_id               = coalesce(var.cloudflare_zone_id, "")
-    public_hostname       = coalesce(local.cloudflare_public_hostname, "")
+    zone_id               = var.cloudflare_zone_id != null ? var.cloudflare_zone_id : ""
+    public_hostname       = local.cloudflare_public_hostname != null ? local.cloudflare_public_hostname : ""
     zero_trust_enabled    = tostring(var.cloudflare_zero_trust_enabled)
-    cloudflare_account_id = coalesce(var.cloudflare_account_id, "")
+    cloudflare_account_id = var.cloudflare_account_id != null ? var.cloudflare_account_id : ""
   }
 
   lifecycle {
     precondition {
-      condition     = var.cloudflare_zone_id != null && trimspace(var.cloudflare_zone_id) != ""
+      condition     = trimspace(var.cloudflare_zone_id != null ? var.cloudflare_zone_id : "") != ""
       error_message = "cloudflare_zone_id must be set because Cloudflare DNS is always managed by this stack."
     }
 
     precondition {
-      condition     = local.cloudflare_public_hostname != null && trimspace(local.cloudflare_public_hostname) != ""
+      condition     = trimspace(local.cloudflare_public_hostname != null ? local.cloudflare_public_hostname : "") != ""
       error_message = "Set cloudflare_public_hostname or cloudflare_zone_name/cloudflare_record_name so Terraform can create the Cloudflare DNS record."
     }
 
     precondition {
-      condition     = !var.cloudflare_zero_trust_enabled || (var.cloudflare_account_id != null && trimspace(var.cloudflare_account_id) != "")
+      condition = (
+        var.cloudflare_zero_trust_enabled ? trimspace(var.cloudflare_account_id != null ? var.cloudflare_account_id : "") != "" : true
+      )
       error_message = "cloudflare_account_id must be set when cloudflare_zero_trust_enabled is true."
+    }
+  }
+}
+
+resource "null_resource" "origin_tls_config" {
+  triggers = {
+    enabled         = tostring(var.origin_tls_enabled)
+    certificate_arn = local.effective_origin_tls_acm_certificate_arn != null ? local.effective_origin_tls_acm_certificate_arn : ""
+    istio_enabled   = tostring(var.istio_enabled)
+  }
+
+  lifecycle {
+    precondition {
+      condition = (
+        var.origin_tls_enabled ? trimspace(local.effective_origin_tls_acm_certificate_arn != null ? local.effective_origin_tls_acm_certificate_arn : "") != "" : true
+      )
+      error_message = "Enable managed certificate creation or set origin_tls_acm_certificate_arn when origin_tls_enabled is true."
+    }
+
+    precondition {
+      condition     = !var.origin_tls_enabled || !var.istio_enabled
+      error_message = "origin_tls_enabled currently supports the direct UI LoadBalancer path only. Disable Istio or add TLS separately to the Istio ingress gateway."
+    }
+  }
+}
+
+resource "null_resource" "argocd_public_config" {
+  count = var.argocd_public_enabled ? 1 : 0
+
+  triggers = {
+    hostname        = local.argocd_public_hostname != null ? local.argocd_public_hostname : ""
+    certificate_arn = local.effective_argocd_origin_tls_acm_certificate_arn != null ? local.effective_argocd_origin_tls_acm_certificate_arn : ""
+    deployment_mode = var.app_deployment_mode
+  }
+
+  lifecycle {
+    precondition {
+      condition     = var.app_deployment_mode == "argocd"
+      error_message = "argocd_public_enabled requires app_deployment_mode = \"argocd\"."
+    }
+
+    precondition {
+      condition     = trimspace(local.argocd_public_hostname != null ? local.argocd_public_hostname : "") != ""
+      error_message = "Set argocd_public_hostname or argocd_cloudflare_record_name/cloudflare_zone_name so Terraform can create the Argo CD DNS record."
+    }
+
+    precondition {
+      condition     = trimspace(local.effective_argocd_origin_tls_acm_certificate_arn != null ? local.effective_argocd_origin_tls_acm_certificate_arn : "") != ""
+      error_message = "Enable managed certificate creation or set argocd_origin_tls_acm_certificate_arn when argocd_public_enabled is true."
+    }
+  }
+}
+
+resource "null_resource" "aws_backup_config" {
+  triggers = {
+    enabled            = tostring(var.aws_backup_enabled)
+    source_region      = var.region
+    destination_region = local.normalized_aws_backup_destination_region != null ? local.normalized_aws_backup_destination_region : ""
+  }
+
+  lifecycle {
+    precondition {
+      condition = (
+        !var.aws_backup_enabled || local.normalized_aws_backup_destination_region != null
+      )
+      error_message = "aws_backup_destination_region must be set when aws_backup_enabled is true."
+    }
+
+    precondition {
+      condition = (
+        !var.aws_backup_enabled || local.normalized_aws_backup_destination_region != trimspace(var.region)
+      )
+      error_message = "aws_backup_destination_region must be different from region when aws_backup_enabled is true."
     }
   }
 }
@@ -88,6 +205,16 @@ module "tags" {
   source = "./modules/tags"
 
   environment_name = var.environment_name
+}
+
+module "edge_certificate" {
+  count  = length(local.managed_edge_certificate_domains) > 0 ? 1 : 0
+  source = "./modules/acm_certificate"
+
+  domain_name               = local.managed_edge_certificate_primary_domain
+  subject_alternative_names = local.managed_edge_certificate_sans
+  zone_id                   = var.cloudflare_zone_id != null ? var.cloudflare_zone_id : ""
+  tags                      = local.common_tags
 }
 
 module "vpc" {
@@ -155,6 +282,35 @@ module "dependencies" {
   checkout_security_group_id = local.security_groups_active ? module.component_security_groups.checkout_id : module.retail_app_eks.node_security_group_id
 }
 
+module "aws_backup" {
+  count  = var.aws_backup_enabled ? 1 : 0
+  source = "./modules/aws_backup"
+
+  providers = {
+    aws             = aws
+    aws.destination = aws.backup_replica
+  }
+
+  environment_name   = var.environment_name
+  destination_region = local.normalized_aws_backup_destination_region != null ? local.normalized_aws_backup_destination_region : ""
+  source_resource_arns = [
+    module.dependencies.catalog_db_arn,
+    module.dependencies.orders_db_arn,
+    module.dependencies.carts_dynamodb_table_arn,
+  ]
+  schedule                  = var.aws_backup_schedule
+  start_window_minutes      = var.aws_backup_start_window_minutes
+  completion_window_minutes = var.aws_backup_completion_window_minutes
+  delete_after_days         = var.aws_backup_delete_after_days
+  copy_delete_after_days    = var.aws_backup_copy_delete_after_days
+  tags                      = local.common_tags
+
+  depends_on = [
+    null_resource.aws_backup_config,
+    module.dependencies,
+  ]
+}
+
 module "k8s_workloads" {
   source = "./modules/k8s_workloads"
 
@@ -165,15 +321,20 @@ module "k8s_workloads" {
     kubernetes = kubernetes
   }
 
-  environment_name          = var.environment_name
-  istio_enabled             = var.istio_enabled
-  opentelemetry_enabled     = var.opentelemetry_enabled
-  tags                      = local.common_tags
-  app_deployment_mode       = var.app_deployment_mode
-  argocd_repo_url           = var.argocd_repo_url
-  argocd_target_revision    = var.argocd_target_revision
-  argocd_namespace          = var.argocd_namespace
-  container_image_overrides = local.effective_container_image_overrides
+  environment_name                      = var.environment_name
+  istio_enabled                         = var.istio_enabled
+  opentelemetry_enabled                 = var.opentelemetry_enabled
+  tags                                  = local.common_tags
+  app_deployment_mode                   = var.app_deployment_mode
+  argocd_repo_url                       = var.argocd_repo_url
+  argocd_target_revision                = var.argocd_target_revision
+  argocd_namespace                      = var.argocd_namespace
+  argocd_public_enabled                 = var.argocd_public_enabled
+  argocd_public_hostname                = local.argocd_public_hostname
+  argocd_origin_tls_acm_certificate_arn = local.effective_argocd_origin_tls_acm_certificate_arn
+  origin_tls_enabled                    = var.origin_tls_enabled
+  origin_tls_acm_certificate_arn        = local.effective_origin_tls_acm_certificate_arn
+  container_image_overrides             = local.effective_container_image_overrides
   security_group_ids = {
     catalog  = module.component_security_groups.catalog_id
     orders   = module.component_security_groups.orders_id
@@ -209,6 +370,7 @@ module "k8s_workloads" {
 
   depends_on = [
     null_resource.argocd_config,
+    null_resource.origin_tls_config,
     module.dependencies,
     module.retail_app_eks
   ]
@@ -219,8 +381,8 @@ module "cloudflare_edge" {
 
   account_id         = var.cloudflare_account_id
   zero_trust_enabled = var.cloudflare_zero_trust_enabled
-  zone_id            = coalesce(var.cloudflare_zone_id, "")
-  public_hostname    = coalesce(local.cloudflare_public_hostname, "")
+  zone_id            = var.cloudflare_zone_id != null ? var.cloudflare_zone_id : ""
+  public_hostname    = local.cloudflare_public_hostname != null ? local.cloudflare_public_hostname : ""
   origin_hostname    = module.k8s_workloads.retail_app_origin_hostname
   proxied            = var.cloudflare_proxied
 
@@ -248,5 +410,38 @@ module "cloudflare_edge" {
 
   depends_on = [
     null_resource.cloudflare_config
+  ]
+}
+
+module "cloudflare_argocd_edge" {
+  count  = var.argocd_public_enabled ? 1 : 0
+  source = "./modules/cloudflare_edge"
+
+  account_id         = var.cloudflare_account_id
+  zero_trust_enabled = var.cloudflare_zero_trust_enabled
+  zone_id            = var.cloudflare_zone_id != null ? var.cloudflare_zone_id : ""
+  public_hostname    = local.argocd_public_hostname != null ? local.argocd_public_hostname : ""
+  origin_hostname    = module.k8s_workloads.argocd_origin_hostname
+  proxied            = var.cloudflare_proxied
+
+  access_application_name              = "${var.environment_name}-argocd"
+  access_policy_name                   = "${var.environment_name}-argocd-allow"
+  access_allowed_email_domains         = var.cloudflare_access_allowed_email_domains
+  access_allowed_emails                = var.cloudflare_access_allowed_emails
+  access_allowed_identity_provider_ids = var.cloudflare_access_allowed_identity_provider_ids
+  access_auto_redirect_to_identity     = var.cloudflare_access_auto_redirect_to_identity
+  access_session_duration              = var.cloudflare_access_session_duration
+  access_app_launcher_visible          = var.cloudflare_access_app_launcher_visible
+
+  manage_zero_trust_organization        = false
+  zero_trust_organization_name          = null
+  zero_trust_auth_domain                = null
+  zero_trust_is_ui_read_only            = var.cloudflare_zero_trust_is_ui_read_only
+  zero_trust_session_duration           = var.cloudflare_zero_trust_session_duration
+  zero_trust_ui_read_only_toggle_reason = var.cloudflare_zero_trust_ui_read_only_toggle_reason
+
+  depends_on = [
+    null_resource.cloudflare_config,
+    null_resource.argocd_public_config
   ]
 }
