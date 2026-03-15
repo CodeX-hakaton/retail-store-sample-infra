@@ -1,6 +1,30 @@
 version: 2.1
 
 jobs:
+  policy-check:
+    docker:
+      - image: cimg/base:2024.12
+    resource_class: small
+    steps:
+      - checkout
+      - run:
+          name: Install conftest
+          command: |
+            curl -fsSL -o /tmp/conftest.tar.gz https://github.com/open-policy-agent/conftest/releases/download/v0.56.0/conftest_0.56.0_Linux_x86_64.tar.gz
+            tar -xzf /tmp/conftest.tar.gz -C /tmp
+            sudo mv /tmp/conftest /usr/local/bin/conftest
+      - run:
+          name: Verify policy unit tests
+          command: |
+            conftest verify --policy policy/env
+            conftest verify --policy policy/charts
+      - run:
+          name: Check Terraform environment policies
+          command: conftest test terraform/environments/*.tfvars --policy policy/env --parser hcl2
+      - run:
+          name: Check chart default policies
+          command: conftest test terraform/charts/catalog/values.yaml terraform/charts/cart/values.yaml terraform/charts/checkout/values.yaml terraform/charts/orders/values.yaml terraform/charts/ui/values.yaml --policy policy/charts --parser yaml
+
   qa-load-test:
     docker:
       - image: cimg/base:2024.12
@@ -41,6 +65,10 @@ jobs:
             exit "$(cat load-tests/results/k6_exit_code.txt)"
 
 workflows:
+  validate:
+    jobs:
+      - policy-check
+
   qa-to-staging-pr-load-test:
     when: >
       pipeline.event.name == "pull_request" and
